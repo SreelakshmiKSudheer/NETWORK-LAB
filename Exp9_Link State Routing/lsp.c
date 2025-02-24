@@ -1,4 +1,4 @@
-include  <stdio.h>
+#include  <stdio.h>
 
 #define INFINITY -1
 
@@ -57,8 +57,7 @@ int main()
 		for(i = 0; i < n; i++)
 		{
 			count = 0;
-//			printf("Router %d:\n",i);
-//			printf("Destination Distance NextRouter\n");
+
 			for(j = 0; j < n; j++)
 			{
 				if(costs[i][j] != INFINITY)
@@ -79,10 +78,8 @@ int main()
 
 						}
 						costs[i][k] = d;
-//						printf("%11d %8d %10d\n", k, tab[i][k].dist, tab[i][k].next);
 					}
 				}
-//				printf("%11d %8d %10d\n", j, tab[i][j].dist, tab[i][j].next);
 			}
 		}
 	}while(count != 0);
