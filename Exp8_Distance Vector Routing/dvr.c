@@ -77,8 +77,9 @@ int main()
                                                 costs[i][k] = d;
                                         }
                                 }
-                                printf("%11d %8d %10d\n", j, tab[i][j].dist, tab[i][j].next);
                         }
+                        for(j = 0; j < n; j++)
+                                printf("%11d %8d %10d\n", j, tab[i][j].dist, tab[i][j].next);
                 }
         }while(count != 0);
 
@@ -126,7 +127,7 @@ Destination Distance NextRouter
           5        6          5
 Router 2:
 Destination Distance NextRouter
-          0       -1         -1
+          0        6          0
           1        2          1
           2        0          2
           3        3          3
@@ -134,8 +135,8 @@ Destination Distance NextRouter
           5        8          5
 Router 3:
 Destination Distance NextRouter
-          0       -1         -1
-          1       -1         -1
+          0        9          0
+          1        5          1
           2        3          2
           3        0          3
           4        4          4
@@ -143,14 +144,14 @@ Destination Distance NextRouter
 Router 4:
 Destination Distance NextRouter
           0        5          0
-          1        9          1
+          1        3          1
           2        1          2
           3        4          3
           4        0          4
           5        8          5
 Router 5:
 Destination Distance NextRouter
-          0       -1         -1
+          0       10          0
           1        6          1
           2        8          2
           3        7          3

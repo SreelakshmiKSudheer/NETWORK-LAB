@@ -1,95 +1,98 @@
+// header files
 #include <stdio.h>
 #include <stdlib.h>
-#include <netdb.h>
-#include <netinet/in.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#define MAX 100
-#define PORT 3014
-#define SA struct sockaddr
+#include <sys/socket.h>
 
-void func(int connfd)
+// definitions
+#define BUFFER_SIZE 1024
+
+// global declarations
+int client_socket;
+char buffer[BUFFER_SIZE];
+
+// main
+int main(int argc, char *argv[])
 {
-	char buff[MAX];
-	char msg[MAX];
-	int n,i;
-	while(1)
-	{
-		bzero(buff,MAX);
-		read(connfd,buff, sizeof(buff));
-		printf("From client: %s",buff);
-		//bzero(buff,MAX);
-		if(strncmp("exit",buff,4) == 0)
-		{
-			printf("Client Exited\n");
-			break;
-		}
-		if(buff[0] >= 'a' && buff[0] <= 'z')
-			buff[0] -= 32;
-		for(i = 1; buff[i] != '\0'; i++)
-		{
-			if(buff[i] >= 'a' && buff[i] <= 'z' && buff[i-1] == ' ')
-				buff[i] -= 32;
-		}
-		printf("%s\n",buff);
-		write(connfd, buff, sizeof(buff));
-	}
+    // server socket
+    int server_socket;
+    int port = atoi(argv[1]);
+
+    // address structures
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len = sizeof(client_addr);
+
+    // socket creation
+    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket == -1)
+    {
+        perror("Socket creation failed");
+        exit(1);
+    }
+
+    // structure set up
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(port);
+
+    // binding
+    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
+    {
+        perror("Binding failed...");
+        exit(1);
+    }
+
+    // listening
+    if (listen(server_socket, 5) == -1)
+    {
+        perror("Listening failed...");
+        exit(1);
+    }
+    printf("Listening for clients...\n");
+
+    // accept
+    if ((client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_len)) == -1)
+    {
+        perror("Client acceptance failed...");
+        exit(1);
+    }
+    printf("Client accepted\n");
+
+    while (1)
+    {
+        memset(buffer, 0, BUFFER_SIZE);
+        int bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);
+        if (bytes_received <= 0)
+        {
+            printf("Client disconnected.\n");
+            break;
+        }
+
+        printf("Client: %s", buffer);
+
+        // Exit condition
+        if (strcasecmp(buffer, "exit\n") == 0)
+        {
+            printf("Client exiting...\n");
+            break;
+        }
+
+        // Capitalization logic
+        for (int i = 0; buffer[i] != '\0'; i++)
+        {
+            if (i == 0 || buffer[i - 1] == ' ' || buffer[i - 1] == '\t' || buffer[i - 1] == '\n')
+            {
+                if (buffer[i] >= 'a' && buffer[i] <= 'z')
+                    buffer[i] -= 32;
+            }
+        }
+
+        send(client_socket, buffer, strlen(buffer), 0);
+        printf("Server: %s", buffer);
+    }
+
+    close(client_socket);
+    close(server_socket);
 }
-
-int main()
-{
-	int sockfd, connfd, len;
-	struct sockaddr_in servaddr, cli;
-	sockfd = socket(AF_INET, SOCK_STREAM,0);
-	
-	if(sockfd == -1)
-	{
-		printf("Socket creation failed\n");
-		exit(0);
-	}
-	else
-	{
-		printf("Socket creation successful\n");
-		bzero(&servaddr, sizeof(servaddr));
-		servaddr.sin_family = AF_INET;
-		servaddr.sin_addr.s_addr = inet_addr("127.0.0.20");
-		servaddr.sin_port = htons(PORT);
-		if((bind(sockfd,(SA*)&servaddr, sizeof(servaddr))) != 0)
-		{
-			printf("Socket binding failed\n");
-			exit(0);
-		}
-		else
-		{
-			printf("Socket binding successful\n");
-			if((listen(sockfd,5)) != 0)
-			{
-				printf("Listening failed\n");
-				exit(0);
-			}
-			else
-			{
-				printf("Server listening\n");
-				len = sizeof(cli);
-				connfd = accept(sockfd,(SA*)&cli,&len);
-				if(connfd < 0)
-				{
-					printf("Server accept failed\n");
-					exit(0);
-				}
-				else
-				{
-					printf("Server accept the client\n");
-					func(connfd);
-					close(sockfd);
-				}
-			}
-		}
-
-	}
-}
-
-
