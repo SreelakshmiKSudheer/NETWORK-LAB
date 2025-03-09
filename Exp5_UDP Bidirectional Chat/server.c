@@ -1,65 +1,68 @@
-#include<stdio.h>
-#include<sys/socket.h>
-#include<netinet/in.h>
-#include<string.h>
-#include<arpa/inet.h>
-#include<unistd.h>
+// header
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
-#define MAX 100
-#define PORT 3028
-int main()
+// definitions
+#define BUFFER_SIZE 1024
+
+char buffer[BUFFER_SIZE];
+
+// main
+int main(int argc, char* argv[])
 {
-	int serverSocket;
-	char buffer[MAX];
-	struct sockaddr_in serverAddr,clientAddr;
-	socklen_t addrSize;
+        int port = atoi(argv[1]);
+        // socket
+        int server_socket;
+        // structures
+        struct sockaddr_in server_addr, client_addr;
+        socklen_t client_len = sizeof(client_addr);
 
-	serverSocket = socket(AF_INET,SOCK_DGRAM,0);
-	if(serverSocket<0)
-	{
-		printf("Socket creation failed");
-		return -1;
-	}
-	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_port = htons(PORT);
-	serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        // socket creation
+        server_socket = socket(AF_INET, SOCK_DGRAM, 0);
+        if(server_socket == -1)
+        {
+                perror("Socket Creation Failed");
+                exit(1);
+        }
+        printf("Socket Creation Successful\n");
 
-	if(bind(serverSocket,(struct sockaddr*)&serverAddr,sizeof(serverAddr))<0)
-	{
-		printf("Bind failed");
-		close(serverSocket);
-		return -1;
-	}
+        // address set up
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr.s_addr = INADDR_ANY;
+        server_addr.sin_port = htons(port);
 
-	printf("Server is listening\n");
-	addrSize = sizeof(clientAddr);
-	while(1)
-	{
-		memset(buffer,0,sizeof(buffer));
-		int recvLen = recvfrom(serverSocket,buffer,sizeof(buffer)-1,0,(struct sockaddr*)&clientAddr,&addrSize);
-                if(recvLen>0)
+        // bind
+        if(bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
+        {
+                perror("Socket Binding Failed");
+                exit(1);
+        }
+        printf("Socket Binding Successful\n");
+
+        while(1)
+        {
+                // receive
+                memset(buffer, 0, BUFFER_SIZE);
+                recvfrom(server_socket, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&client_addr, &client_len);
+                printf("Client: %s", buffer);
+
+                if(strcmp(buffer, "exit\n") == 0)
                 {
-                        buffer[recvLen]='\0';
-                        printf("Message from Client: %s\n",buffer);
-                        if(strcmp(buffer,"exit")==0)
-                        {
-                                printf("Client exited.\n");
-                                continue;
-                        }
-			memset(buffer,0,sizeof(buffer));
-			printf("Enter a message: ");
-                	fgets(buffer,sizeof(buffer),stdin);
-                	buffer[strcspn(buffer,"\n")]='\0';
-                	sendto(serverSocket,buffer,strlen(buffer),0,(struct sockaddr*)&clientAddr,addrSize);
+                        printf("Client exiting\n...");
+                }
+                // read
+                fgets(buffer, BUFFER_SIZE, stdin);
+                // send
+                sendto(server_socket, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&client_addr, client_len);
+                if(strcmp(buffer, "exit\n") == 0)
+                {
+                        printf("Server exiting\n...");
+                        break;
+                }
 
-                	if(strcmp(buffer,"exit")==0)
-                	{
-                        	printf("Server shutting down\n");
-                        	break;
-                	}
-         	}
-	}
-	close(serverSocket);
-	return 0;
+        }
 }
-
