@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
     int seq, ack;
-    struct timeval timeout = {3, 0};  // 3 seconds timeout
+    struct timeval timeout = {2, 0}; 
 
     if (argc < 2)
     {

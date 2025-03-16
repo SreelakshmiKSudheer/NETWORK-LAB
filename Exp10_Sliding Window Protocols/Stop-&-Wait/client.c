@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 
     while (seq <= 4)
     {
-        if (rand() % 3 != 0)  // Randomly drop packets (1 in 3 chance)
+        if (rand() % 3 != 0)  
         {
             send(client_socket, &seq, sizeof(seq), 0);
             printf("Sent seq: %d\n", seq);
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
         else
         {
             printf("Packet seq %d lost! Retrying...\n", seq);
-            continue;  // Simulate retransmission
+            continue;  
         }
 
         if (recv(client_socket, &ack, sizeof(ack), 0) > 0)
