@@ -104,3 +104,14 @@ int main(int argc, char *argv[])
         close(client_socket);
         close(server_socket);
 }
+
+/*
+compile:
+cc server.c -o ./server.out
+
+execute
+./server.out 6254
+
+
+USE ANY PORT NUMBER
+*/
