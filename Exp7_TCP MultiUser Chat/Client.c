@@ -4,99 +4,171 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
 
-#define MAX 1024
-#define NAME_LEN 1024
+#define BUFFER_SIZE 1024
+#define MSG_SIZE 1000
 
-void *recv_msg(void *sock);
-void *send_msg(void *sock);
+int client_socket;
+char name[24];
+char msg[MSG_SIZE], buffer[BUFFER_SIZE];
 
-char name[NAME_LEN] = "noname";
-char msg[MAX];
+void *receiveMsg(void *arg);
+void *sendMsg(void *arg);
 
 int main(int argc, char *argv[])
 {
-    int cl_sock;
-    struct sockaddr_in sv_addr;
-    pthread_t recv_thread, send_thread;
-    void *thread_return;
+        // port
+        int port = atoi(argv[1]);
+        sprintf(name, "%s", argv[2]);
 
-    if (argc != 4)
-    {
-        printf("Usage: %s <server IP> <port> <name>\n", argv[0]);
-        exit(1);
-    }
+        // declarations
+        struct sockaddr_in client_addr, server_addr;
+        socklen_t server_len = sizeof(server_addr);
 
-    sprintf(name, "%s", argv[3]); // Fixed syntax
-
-    cl_sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (cl_sock == -1)
-    {
-        perror("ERROR: socket() failed");
-        exit(1);
-    }
-
-    memset(&sv_addr, 0, sizeof(sv_addr));
-    sv_addr.sin_family = AF_INET;
-    sv_addr.sin_addr.s_addr = inet_addr(argv[1]);
-    sv_addr.sin_port = htons(atoi(argv[2]));
-
-    if (connect(cl_sock, (struct sockaddr *)&sv_addr, sizeof(sv_addr)) == -1)
-    {
-        perror("ERROR: connect() failed");
-        close(cl_sock);
-        exit(1);
-    }
-
-    printf("Connected to group chat! (Type 'exit' to quit)\n\n");
-
-    sprintf(msg, "----- %s has joined! -----\n", name);
-    write(cl_sock, msg, strlen(msg)); // Fixed variable name
-
-    pthread_create(&send_thread, NULL, send_msg, (void *)&cl_sock); // Fixed thread function
-    pthread_create(&recv_thread, NULL, recv_msg, (void *)&cl_sock);
-
-    pthread_join(send_thread, &thread_return);
-    pthread_join(recv_thread, &thread_return);
-
-    close(cl_sock);
-    return 0;
-}
-
-void *send_msg(void *arg)
-{
-    int cl_sock = *(int *)arg;
-    char full_msg[NAME_LEN + MAX];
-
-    while (1)
-    {
-        fgets(msg, MAX, stdin);
-        if (strcmp(msg, "exit\n") == 0)
+        pthread_t receiveThread, sendThread;
+        // socket creation
+        if((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
         {
-            sprintf(full_msg, "----- %s has left! -----\n", name);
-            write(cl_sock, full_msg, strlen(full_msg));
-            close(cl_sock);
-            exit(0);
+                perror("socket creation failed");
+                exit(1);
         }
-        sprintf(full_msg, "%s: %s", name, msg);
-        write(cl_sock, full_msg, strlen(full_msg));
-    }
+        printf("socket creation successful\n");
 
-    return NULL;
+        // address set up
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(port);
+        inet_pton(AF_INET, "127.0.01", &server_addr.sin_addr);
+
+        // connection
+        if((connect(client_socket, (struct sockaddr*)&server_addr, server_len)) == -1)
+        {
+                perror("connection failed");
+                exit(1);
+        }
+        sprintf(msg, "----- %s has joined the chat-----\n", name);
+        write(client_socket, msg, sizeof(msg));
+
+        // thread creation
+        pthread_create(&receiveThread, NULL, receiveMsg, NULL);
+        pthread_create(&sendThread, NULL, sendMsg, NULL);
+
+        // joins
+        pthread_join(receiveThread, NULL);
+        pthread_join(sendThread, NULL);
+
+        // closing
+        close(client_socket);
 }
 
-void *recv_msg(void *sock)
+void *receiveMsg(void *arg)
 {
-    int cl_sock = *(int *)sock;
-    char msg[MAX];
-    int str_len;
+        while(1)
+        {
+                memset(buffer, 0, BUFFER_SIZE);
 
-    while ((str_len = read(cl_sock, msg, sizeof(msg) - 1)) > 0)
-    {
-        msg[str_len] = '\0';
-        fputs(msg, stdout);
-    }
+                recv(client_socket, buffer, BUFFER_SIZE, 0);
+                printf("%s", buffer);
 
-    printf("Disconnected from server.\n");
-    exit(0);
+                if(strcasecmp(buffer, "exit\n") == 0)
+                {
+                        printf("Server Exiting...\nClosing the chat...\n");
+                        break;
+                }
+        }
 }
+
+void *sendMsg(void *arg)
+{
+        while(1)
+        {
+                fgets(msg, MSG_SIZE, stdin);
+                sprintf(buffer, "%s: %s", name, msg);
+                send(client_socket, buffer, BUFFER_SIZE, 0);
+
+                if(strcasecmp(msg, "exit\n") == 0)
+                {
+                        printf("%s exiting...\n", name);
+                        break;
+                }
+        }
+}
+
+
+/*
+
+SAMPLE OUTPUT:
+
+socket creation successful
+----- tony has joined the chat-----
+----- steve has joined the chat-----
+----- natasha has joined the chat-----
+so we are all here
+tony: so we are all here
+natasha: yeah, cap what's your call
+steve: we have to split
+natasha: sure
+your plan?
+tony: your plan?
+steve: 3 stone, 3 avengers, 1 shot
+roger that
+tony: roger that
+natasha: copy that
+exit
+tony exiting...
+tony: exit
+natasha: exit
+steve: good luck guys
+yes
+steve: bye bye
+steve: exit
+^C
+
+socket creation successful
+----- steve has joined the chat-----
+----- natasha has joined the chat-----
+tony: so we are all here
+natasha: yeah, cap what's your call
+we have to split
+steve: we have to split
+natasha: sure
+tony: your plan?
+3 stone, 3 avengers, 1 shot
+steve: 3 stone, 3 avengers, 1 shot
+tony: roger that
+natasha: copy that
+tony: exit
+natasha: exit
+good luck guys
+steve: good luck guys
+bye bye
+steve: bye bye
+exit
+steve exiting...
+steve: exit
+exit
+^C
+
+socket creation successful
+----- natasha has joined the chat-----
+tony: so we are all here
+yeah, cap what's your call
+natasha: yeah, cap what's your call
+steve: we have to split
+sure
+natasha: sure
+tony: your plan?
+steve: 3 stone, 3 avengers, 1 shot
+tony: roger that
+copy that
+natasha: copy that
+tony: exit
+exit
+natasha exiting...
+natasha: exit
+steve: good luck guys
+you too cap
+steve: bye bye
+steve: exit
+^C
+*/
