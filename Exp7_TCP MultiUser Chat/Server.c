@@ -125,3 +125,33 @@ void broadcastMsg(char msg[], int len)
         }
         pthread_mutex_unlock(&mutex);
 }
+
+/*
+cc server.c -o server.out
+./server.out 6001
+
+SAMPLE OUTPUT:
+
+socket creation successful
+socket binding successful
+Server listening
+Starting the group chat on port: 6001
+----- tony has joined the chat-----
+----- steve has joined the chat-----
+----- natasha has joined the chat-----
+tony: so we are all here
+natasha: yeah, cap what's your call
+steve: we have to split
+natasha: sure
+tony: your plan?
+steve: 3 stone, 3 avengers, 1 shot
+tony: roger that
+natasha: copy that
+tony: exit
+natasha: exit
+steve: good luck guys
+steve: bye bye
+steve: exit
+exit
+^C
+*/
