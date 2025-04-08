@@ -1,31 +1,28 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <time.h>
 
-#define WINDOW_SIZE 4
-#define TOTAL_PACKETS 10
+#define BUFFER_SIZE 20
+#define FRAMES 7
 
 int main(int argc, char *argv[])
 {
     int server_socket, client_socket;
+
     struct sockaddr_in server_addr, client_addr;
-    socklen_t addr_size;
-    int received[TOTAL_PACKETS] = {0};
-    int seq, ack;
+    socklen_t client_len = sizeof(client_addr);
 
-    if (argc < 2)
-    {
-        printf("Usage: %s <port>\n", argv[0]);
-        exit(1);
-    }
-
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket == -1)
+    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
         perror("Socket creation failed");
         exit(1);
     }
+    printf("Socket creation successful\n");
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(atoi(argv[1]));
@@ -33,60 +30,94 @@ int main(int argc, char *argv[])
 
     if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
     {
-        perror("Binding failed");
+        perror("Socket binding failed");
         exit(1);
     }
+    printf("Socket binding successful\n");
 
-    if (listen(server_socket, 1) == -1)
+    if (listen(server_socket, 5) == -1)
     {
         perror("Listening failed");
         exit(1);
     }
+    printf("Server listening\n");
 
-    printf("Waiting for client...\n");
-    addr_size = sizeof(client_addr);
-    client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &addr_size);
-    if (client_socket == -1)
+    if ((client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_len)) == -1)
     {
-        perror("Connection failed");
+        perror("Accepting failed");
         exit(1);
     }
+    printf("Connected to Client\n");
 
-    printf("Client connected.\n");
+    srand(time(0));
 
-    while (1)
+    int ack = 0, total = 0, rec_seq;
+    int acked[FRAMES], i;
+    for (i = 0; i < FRAMES; i++)
+        acked[i] = 0;
+
+    while (total < FRAMES)
     {
-        if (recv(client_socket, &seq, sizeof(seq), 0) > 0)
+        if (recv(client_socket, &rec_seq, sizeof(int), 0) > 0)
         {
-            printf("Received packet with seq: %d\n", seq);
 
-            if (seq < TOTAL_PACKETS && received[seq] == 0)
+            printf("Received frame %d\n", rec_seq);
+
+            if (rec_seq >= 0 && rec_seq < FRAMES)
             {
-                received[seq] = 1;
-                ack = seq + 1;
-                send(client_socket, &ack, sizeof(ack), 0);
-                printf("Sent ACK: %d\n", ack);
+                if (acked[rec_seq] == 1)
+                {
+                    printf("Duplicate frame! Discarding...\n");
+                }
+                else
+                {
+                    if (rand() % 100 < 20)
+                    {
+                        printf("Simulating ACK lost for ACK %d\n", rec_seq + 1);
+                    }
+                    else
+                    {
+                        ack = rec_seq + 1;
+                        send(client_socket, &ack, sizeof(int), 0);
+                        printf("Sent ACK %d\n", ack);
+                        acked[rec_seq] = 1;
+                        total++;
+                    }
+                }
             }
-        }
-
-        int done = 1;
-        for (int i = 0; i < TOTAL_PACKETS; i++)
-        {
-            if (received[i] == 0)
-            {
-                done = 0;
-                break;
-            }
-        }
-
-        if (done)
-        {
-            printf("All packets received. Closing connection.\n");
-            break;
         }
     }
 
     close(client_socket);
     close(server_socket);
+
     return 0;
 }
+
+
+/*
+Socket creation successful
+Socket binding successful
+Server listening
+Connected to Client
+Received frame 1
+Simulating ACK lost for ACK 2
+Received frame 2
+Sent ACK 3
+Received frame 4
+Sent ACK 5
+Received frame 5
+Simulating ACK lost for ACK 6
+Received frame 6
+Sent ACK 7
+Received frame 0
+Sent ACK 1
+Received frame 1
+Sent ACK 2
+Received frame 3
+Sent ACK 4
+Received frame 5
+Simulating ACK lost for ACK 6
+Received frame 5
+Sent ACK 6
+*/

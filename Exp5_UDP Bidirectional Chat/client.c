@@ -60,3 +60,25 @@ int main(int argc, char* argv[])
                 }
         }
 }
+
+/*
+cc client.c -o client.out
+./client.out 2305
+
+USE ANY PORT NUMBER IN PLACE OF 2305
+
+SAMPLE OUTPUT:
+
+socket creation successful
+Hi
+Server: Hi
+Nice to meet you
+Server: Introduce your self
+you don't know
+Server: quick, introduce
+i'm naruto
+Server: okay
+eixt
+Server: exit
+Server exiting..
+*/

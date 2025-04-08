@@ -66,3 +66,24 @@ int main(int argc, char* argv[])
 
         }
 }
+
+/*
+cc server.c -o server.out
+./server.out 2305
+
+SAMPLE OUTPUT
+
+socket creation successful
+socket binding successful
+Client: Hi
+Hi
+Client: Nice to meet you
+Introduce your self
+Client: you don't know
+quick, introduce
+Client: i'm naruto
+okay
+Client: eixt
+exit
+Server exiting..
+*/

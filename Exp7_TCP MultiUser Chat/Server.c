@@ -1,122 +1,157 @@
 #include <stdio.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <pthread.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
-#define MAX_CLIENTS 20
-#define MAX 1024
+#define BUFFER_SIZE 1024
+#define MAX 10
 
-void* serve_cl(void *arg);
-void broadcast_msg(char *msg, int len);
-void handle_err(char *err_msg);
-
-int cl_cnt = 0;
-int cl_socks[MAX_CLIENTS];
+int client_sockets[MAX], client_count = 0;
+char buffer[BUFFER_SIZE];
 pthread_mutex_t mutex;
+
+void *server_client(void *arg);
+void broadcastMsg(char msg[], int len);
 
 int main(int argc, char *argv[])
 {
-    int sv_sock, cl_sock;
-    struct sockaddr_in sv_addr, cl_addr;
-    socklen_t cl_addr_sz;
-    pthread_t t_id;
+        // port
+        int port = atoi(argv[1]);
 
-    if (argc != 2)
-    {
-        printf("Usage: %s <port>\n", argv[0]);
-        exit(1);
-    }
+        // declarations
+        int server_socket, client_socket;
+        struct sockaddr_in client_addr, server_addr;
+        socklen_t client_len;
+        pthread_t tid;
 
-    pthread_mutex_init(&mutex, NULL);
+        pthread_mutex_init(&mutex, NULL);
 
-    sv_sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (sv_sock == -1)
-        handle_err("ERROR: socket() failed");
+        // socket creation
+        if((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+        {
+                perror("socket creation failed");
+                exit(1);
+        }
+        printf("socket creation successful\n");
 
-    memset(&sv_addr, 0, sizeof(sv_addr));
-    sv_addr.sin_family = AF_INET;
-    sv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    sv_addr.sin_port = htons(atoi(argv[1]));
+        // address set up
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(port);
+        server_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(sv_sock, (struct sockaddr *)&sv_addr, sizeof(sv_addr)) == -1)
-        handle_err("ERROR: bind() failed");
+        // binding
+        if((bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr))) == -1)
+        {
+                perror("binding failed");
+                exit(1);
+        }
+        printf("socket binding successful\n");
 
-    if (listen(sv_sock, 5) == -1)
-        handle_err("ERROR: listen() failed");
+        if(listen(server_socket, 5) == -1)
+        {
+                perror("listening failed");
+                exit(1);
+        }
+        printf("Server listening\n");
 
-    printf("Group chat server is running on port: %s\n", argv[1]);
+        printf("Starting the group chat on port: %d\n", port);
 
-    while (1)
-    {
-        cl_addr_sz = sizeof(cl_addr);
-        cl_sock = accept(sv_sock, (struct sockaddr *)&cl_addr, &cl_addr_sz);
-        if (cl_sock == -1)
-            continue;
+        while(1)
+        {
+                client_len = sizeof(client_addr);
+                client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_len);
+                if(client_socket == -1)
+                {
+                        continue;
+                }
+
+                pthread_mutex_lock(&mutex);
+                client_sockets[client_count++] = client_socket;
+                pthread_mutex_unlock(&mutex);
+
+                pthread_create(&tid, NULL, server_client, (void *)&client_socket);
+                pthread_detach(tid);
+
+        }
+        close(server_socket);
+        return 0;
+}
+
+
+void *server_client(void *arg)
+{
+        int client_socket = *(int *)arg, i;
+        char buffer[BUFFER_SIZE];
+
+        memset(buffer, 0, BUFFER_SIZE);
+
+        while(recv(client_socket, buffer, BUFFER_SIZE, 0) > 0)
+        {
+                printf("%s", buffer);
+                broadcastMsg(buffer, strlen(buffer));
+        }
 
         pthread_mutex_lock(&mutex);
-        cl_socks[cl_cnt++] = cl_sock;
+
+        for( i = 0; i < client_count; i++)
+        {
+                if(client_sockets[i] == client_socket)
+                {
+                        while(i < client_count)
+                        {
+                                client_sockets[i] = client_sockets[i+1];
+                                i++;
+                        }
+                }
+        }
+        client_count--;
         pthread_mutex_unlock(&mutex);
 
-        pthread_create(&t_id, NULL, serve_cl, (void *)&cl_sock);
-        pthread_detach(t_id);
-
-        printf("Connected client IP: %s\n", inet_ntoa(cl_addr.sin_addr));
-    }
-
-    close(sv_sock);
-    return 0;
+        close(client_socket);
+        return NULL;
 }
 
-void* serve_cl(void *arg)
+void broadcastMsg(char msg[], int len)
 {
-    int cl_sock = *(int*)arg;
-    int str_len = 0, i;
-    char msg[MAX];
+        int i;
 
-    while ((str_len = read(cl_sock, msg, sizeof(msg))) > 0)
-    {
-        msg[str_len] = '\0';
-        broadcast_msg(msg, str_len);
-    }
-
-    pthread_mutex_lock(&mutex);
-
-    for (i = 0; i < cl_cnt; i++)
-    {
-        if (cl_socks[i] == cl_sock)
+        pthread_mutex_lock(&mutex);
+        for(i = 0; i < client_count; i++)
         {
-            while (i < cl_cnt - 1)
-            {
-                cl_socks[i] = cl_socks[i + 1];
-                i++;
-            }
-            break;
+                send(client_sockets[i], msg, len, 0);
         }
-    }
-
-    cl_cnt--;
-    pthread_mutex_unlock(&mutex);
-
-    close(cl_sock);
-    return NULL;
+        pthread_mutex_unlock(&mutex);
 }
 
-void broadcast_msg(char *msg, int len)
-{
-    pthread_mutex_lock(&mutex);
-    for (int i = 0; i < cl_cnt; i++)
-    {
-        write(cl_socks[i], msg, len);
-    }
-    pthread_mutex_unlock(&mutex);
-}
+/*
+cc server.c -o server.out
+./server.out 6001
 
-void handle_err(char *err_msg)
-{
-    perror(err_msg);
-    exit(1);
-}
+SAMPLE OUTPUT:
+
+socket creation successful
+socket binding successful
+Server listening
+Starting the group chat on port: 6001
+----- tony has joined the chat-----
+----- steve has joined the chat-----
+----- natasha has joined the chat-----
+tony: so we are all here
+natasha: yeah, cap what's your call
+steve: we have to split
+natasha: sure
+tony: your plan?
+steve: 3 stone, 3 avengers, 1 shot
+tony: roger that
+natasha: copy that
+tony: exit
+natasha: exit
+steve: good luck guys
+steve: bye bye
+steve: exit
+exit
+^C
+*/
