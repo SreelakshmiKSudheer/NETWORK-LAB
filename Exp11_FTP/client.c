@@ -1,76 +1,63 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <arpa/inet.h>
-#include <sys/types.h>
 #include <sys/socket.h>
-#include <netdb.h>
+#include <unistd.h>
 
-#define SIZE 1024
+#define SIZE 2048
 
-void readFile(int clientSocket) {
-    char filename[100];
-    printf("Enter Filename to send: ");
-    scanf("%s", filename);
+int client_socket;
 
-    FILE* fp = fopen(filename, "r");
-    if (fp == NULL) {
-        perror("Error opening file");
-        exit(EXIT_FAILURE);
-    }
+void readFile()
+{
+        char filename[25], buffer[SIZE];
+        int bytes;
 
-    char buffer[SIZE];
-    int bytesRead;
+        printf("Enter filename: ");
+        scanf(" %[^\n]", filename);
 
-    while ((bytesRead = fread(buffer, sizeof(char), SIZE - 1, fp)) > 0) {
-        buffer[bytesRead] = '\0';  // Ensure null termination
-        if (send(clientSocket, buffer, bytesRead, 0) < 0) {
-            perror("Error in sending");
-            close(clientSocket);
-            fclose(fp);
-            return;
+        FILE *fp;
+
+        if((fp = fopen(filename, "r")) == NULL)
+        {
+                printf("Couldn't openfile\n");
+                exit(1);
         }
-    }
+        while((bytes = fread(buffer, sizeof(char), SIZE-1, fp)) > 0)
+        {
+                buffer[bytes] = '\0';
+                send(client_socket, buffer, SIZE, 0);
+        }
 
-    printf("%s sent successfully\n", filename);
-    fclose(fp);
-    close(clientSocket);
+        fclose(fp);
 }
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s <port>\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
 
-    int sockfd;
-    struct sockaddr_in servaddr;
+int main(int argc, char *argv[])
+{
+        struct sockaddr_in server_addr,client_addr;
+        socklen_t server_len = sizeof(server_addr);
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        perror("Socket creation failed");
-        exit(EXIT_FAILURE);
-    }
+        if((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+        {
+                perror("Socket creation failed");
+                exit(1);
+        }
+        printf("Socket creation successful\n");
 
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(atoi(argv[1]));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(atoi(argv[1]));
+        inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
 
-    if (inet_pton(AF_INET, "127.0.0.1", &servaddr.sin_addr) <= 0) {
-        perror("Invalid address / Address not supported");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
+        if(connect(client_socket, (struct sockaddr*)&server_addr, server_len) == -1)
+        {
+                perror("Connection failed");
+                exit(1);
+        }
+        printf("Connection successful\n");
 
-    if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
-        perror("Connection failed");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
+        readFile();
 
-    readFile(sockfd);
-    close(sockfd);
-
-    return 0;
+        close(client_socket);
 }
