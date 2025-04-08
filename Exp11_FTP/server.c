@@ -1,96 +1,78 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <arpa/inet.h>
-#include <netdb.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
-#define SIZE 1024
+#define SIZE 2048
 
-void writeFile(int clientSocket) {
-    char buffer[SIZE];
-    char receivedData[SIZE * 10] = "";  // Buffer to store full received data
+int client_socket;
 
-    FILE* fp = fopen("output.txt", "w");
-    if (fp == NULL) {
-        perror("File opening error");
-        exit(EXIT_FAILURE);
-    }
+void writeFile()
+{
+        char buffer[SIZE], reverse[SIZE];
+        FILE *fp;
 
-    int bytesReceived;
-    while ((bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0)) > 0) {
-        buffer[bytesReceived] = '\0';  // Ensure null termination
-        strcat(receivedData, buffer);  // Store received data
-    }
+        if((fp = fopen("output", "w")) == NULL)
+        {
+                printf("Couldn't open file\n");
+                exit(1);
+        }
 
-    if (bytesReceived < 0) {
-        perror("Receive error");
-    }
+        recv(client_socket, buffer, SIZE, 0);
 
-    // Reverse the received data
-    int len = strlen(receivedData);
-    for (int i = 0, j = len - 1; i < j; i++, j--) {
-        char temp = receivedData[i];
-        receivedData[i] = receivedData[j];
-        receivedData[j] = temp;
-    }
+        int i, len = strlen(buffer);
+        for(i = 0; i < len; i++)
+                reverse[i] = buffer[len-1-i];
+        fprintf(fp, "%s", reverse);
 
-    // Write reversed content to file
-    fprintf(fp, "%s", receivedData);
-    printf("Reversed content:\n%s\n", receivedData);
+        printf("Reversed content: \n%s\n", reverse);
 
-    fclose(fp);
+        fclose(fp);
 }
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s <port>\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
 
-    int sockfd, newsockfd;
-    struct sockaddr_in servaddr, clientaddr;
-    socklen_t clilen = sizeof(clientaddr);
+int main(int argc, char *argv[])
+{
+        int server_socket;
+        struct sockaddr_in server_addr,client_addr;
+        socklen_t client_len = sizeof(client_addr);
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        perror("Socket creation failed");
-        exit(EXIT_FAILURE);
-    }
+        if((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+        {
+                perror("Socket creation failed");
+                exit(1);
+        }
+        printf("Socket creation successful\n");
 
-    int opt = 1;
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(atoi(argv[1]));
+        server_addr.sin_addr.s_addr = INADDR_ANY;
 
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(atoi(argv[1]));
-    servaddr.sin_addr.s_addr = INADDR_ANY;
+        if(bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
+        {
+                perror("Socket binding failed");
+                exit(1);
+        }
+        printf("Socket binding successful\n");
 
-    if (bind(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
-        perror("Bind failed");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
+        if(listen(server_socket, 5) == -1)
+        {
+                perror("Listening failed");
+                exit(1);
+        }
+        printf("Server Listening\n");
 
-    if (listen(sockfd, 5) < 0) {
-        perror("Listen failed");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
+        if((client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_len)) == -1)
+        {
+                perror("Accept failed");
+                exit(1);
+        }
+        printf("Accepted client\n");
 
-    printf("Server listening on port %s...\n", argv[1]);
+        writeFile();
 
-    newsockfd = accept(sockfd, (struct sockaddr *)&clientaddr, &clilen);
-    if (newsockfd < 0) {
-        perror("Accept failed");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
-
-    writeFile(newsockfd);
-
-    close(newsockfd);
-    close(sockfd);
-    return 0;
+        close(client_socket);
+        close(server_socket);
 }
