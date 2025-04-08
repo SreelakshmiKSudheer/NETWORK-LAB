@@ -1,66 +1,113 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/select.h>
 #include <time.h>
+
+#define SIZE 20
 
 int main(int argc, char *argv[])
 {
-    int client_socket;
-    struct sockaddr_in server_addr;
-    int seq = 0, ack;
+        int client_socket;
+        int seq, ack;
+        char buffer[20];
 
-    if (argc < 2)
-    {
-        printf("Usage: %s <port>\n", argv[0]);
-        exit(1);
-    }
+        struct sockaddr_in server_addr,client_addr;
+        socklen_t server_len = sizeof(server_addr);
+        struct timeval timeout;
+        fd_set readfds;
 
-    client_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (client_socket == -1)
-    {
-        perror("Socket creation failed");
-        exit(1);
-    }
+        srand(time(NULL));
 
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(atoi(argv[1]));
-    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
-
-    if (connect(client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
-    {
-        perror("Connection failed");
-        exit(1);
-    }
-    printf("Connected to server.\n");
-
-    srand(time(NULL));
-
-    while (seq <= 4)
-    {
-        if (rand() % 3 != 0)  
+        if((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1)
         {
-            send(client_socket, &seq, sizeof(seq), 0);
-            printf("Sent seq: %d\n", seq);
+                perror("Socket creation failed");
+                exit(1);
         }
-        else
-        {
-            printf("Packet seq %d lost! Retrying...\n", seq);
-            continue;  
-        }
+        printf("Socket creation successful\n");
 
-        if (recv(client_socket, &ack, sizeof(ack), 0) > 0)
-        {
-            printf("Received ack: %d\n", ack);
-            seq = ack;
-        }
-        else
-        {
-            printf("Timeout! Resending seq: %d\n", seq);
-        }
-    }
+        server_addr.sin_family = AF_INET;
+        //server_addr,sin_addr.s_addr = INADDR_ANY;
+        server_addr.sin_port = htons(atoi(argv[1]));
+        inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
 
-    close(client_socket);
+        // connect
+        if(connect(client_socket, (struct sockaddr*)&server_addr, server_len) == -1)
+        {
+                perror("Couldn't connect to server");
+                exit(1);
+        }
+        printf("Connected to Server\n");
 
-    return 0;
+        // send frame
+        for(seq = 0; seq < 5;)
+        {
+                if(rand() % 100 < 30)           // simulate frame loss
+                {
+                        printf("simulating frame loss for seq %d\n", seq);
+                        sleep(1);
+                        continue;
+                }
+
+                FD_ZERO(&readfds);
+                FD_SET(client_socket, &readfds);
+                timeout.tv_sec = 3;
+                timeout.tv_usec = 0;
+
+                memset(buffer, 0, SIZE);
+                sprintf(buffer, "%d", seq);
+                send(client_socket, buffer, strlen(buffer), 0);
+                printf("Sent seq: %d\n", seq);
+
+                if(select(client_socket+1, &readfds, NULL, NULL, &timeout) == 0)
+                {
+                        printf("Timeout, Resending frame seq %d\n", seq);
+                        continue;
+                }
+                memset(buffer, 0, SIZE);
+                if(recv(client_socket, buffer, SIZE, 0) > 0)
+                {
+                        ack = atoi(buffer);
+                        printf("Received ACK %d\n", ack);
+                        if(ack == seq+1)
+                                seq++;
+                }
+        }
+        close(client_socket);
+        return 0;
 }
+
+/*
+cc client.c -o client.out
+./client.out 3004
+
+SAMPLE OUTPUT:
+
+Socket creation successful
+Connected to Server
+Sent seq: 0
+Timeout, Resending frame seq 0
+Sent seq: 0
+Received ACK 1
+Sent seq: 1
+Timeout, Resending frame seq 1
+Sent seq: 1
+Timeout, Resending frame seq 1
+Sent seq: 1
+Timeout, Resending frame seq 1
+Sent seq: 1
+Received ACK 2
+simulating frame loss for seq 2
+Sent seq: 2
+Received ACK 3
+Sent seq: 3
+Timeout, Resending frame seq 3
+Sent seq: 3
+Received ACK 4
+Sent seq: 4
+Received ACK 5
+
+*/
