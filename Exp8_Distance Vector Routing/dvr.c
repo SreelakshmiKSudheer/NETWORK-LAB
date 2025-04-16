@@ -50,9 +50,10 @@ int main()
                 }
         do
         {
+                count = 0;
                 for(i = 0; i < n; i++)
                 {
-                        count = 0;
+                        
                         printf("Router %d:\n",i);
                         printf("Destination Distance NextRouter\n");
                         for(j = 0; j < n; j++)

@@ -17,9 +17,9 @@ int min(int xn, int ny, int xy)
 			return xn+ny;
 	else
 		if(xn == INFINITY || ny == INFINITY)
- 	                return xy;
-                else
-                       	if(xn+ny < xy)
+ 	        return xy;
+        else
+            if(xn+ny < xy)
 				return xn+ny;
 			else
 				return xy;
@@ -104,39 +104,3 @@ int main()
                 printf("\n");
         }
 }
-
-/*
-Sample Input:
-7
-
-0 1 1 -1 1 1 -1
-1 0 1 -1 -1 -1 -1
-1 1 0 1 -1 -1 -1
--1 -1 1 0 -1 -1 1
-1 -1 -1 -1 0 -1 -1
-1 -1 -1 -1 -1 0 1
--1 -1 -1 1 -1 1 0
-
-2
-
-Sample Output:
-Minimum Distance from 2 to all the other routers:
-Destination Distance
-          0        1
-          1        1
-          2        0
-          3        1
-          4        2
-          5        2
-          6        2
-Cost Matrix:
-        0   1   2   3   4   5   6
-------------------------------------------
-  0 |   0   1   1   2   1   1   2
-  1 |   1   0   1   2   2   2   3
-  2 |   1   1   0   1   2   2   2
-  3 |   2   2   1   0   3   2   1
-  4 |   1   2   2   3   0   2   3
-  5 |   1   2   2   2   2   0   1
-  6 |   2   3   2   1   3   1   0
-*/
