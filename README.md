@@ -41,4 +41,17 @@ This repository contains networking lab exercises implemented in **C language** 
    git clone https://github.com/SreelakshmiKSudheer/NETWORK-LAB.git
    cd NETWORK-LAB
    ```
+2. Compile the C programs:
 
+   ```bash
+   gcc filename.c -o output
+   ```
+3. Run the compiled program:
+    For Client-Server programs:
+    ```bash
+    ./output  <server_port>
+    ```
+    For other programs:
+    ```bash
+    ./output
+    ```
