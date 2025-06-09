@@ -51,6 +51,9 @@ This repository contains networking lab exercises implemented in **C language** 
     ```bash
     ./output  <server_port>
     ```
+    Make sure to run both client and server side programs
+
+    
     For other programs:
     ```bash
     ./output
